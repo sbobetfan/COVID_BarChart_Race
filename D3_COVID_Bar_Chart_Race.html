@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>COVID-19 World Cases</title>
+    <script src="https://d3js.org/d3.v5.js"></script>
+    <script src="https://d3js.org/d3-array.v2.min.js"></script>
+</head>
+
+<body>
+<h1>Bar-Chart Race, COVID-19 Outbreak Worldwide to 14th December 2020</h1>
+
+<p>7CCSMSDV Assignment 3, Part 3. Implementation - Martin Johnston 20097129</p>
+
+This is an implementation of the first visualisation proposed in Part 2 of my report.
+<br>It was developed in WebStorm and tested on both Safari and Chrome by clicking the relevant browser logos from within WebStorm. <br>
+The methods in the code were put together myself, however I acknowledge the following source for providing the skeleton for some key components: <a href="https://observablehq.com/@d3/bar-chart-race-explained">Source</a>
+
+<p> The data used for this visualisation comes from a dataset provided for this assignment, by the European Centre for Disease Prevention and Control.</p>
+
+<p> How data are being processed:
+    <br> Some pre-processing was performed on this dataset; I wrote a script in Python to add columns representing the cumulative 'running total' number of cases and deaths that each country reported daily.
+    <br> It is these values that are displayed by the bar chart below, increasing as time continues and hence affecting the size of the bars and the scale of the horizontal axis.
+    <br> On each successive day throughout the animation, gathered by the Date column in the dataset, the values of all countries are evaluated for that day and sorted in descending order. When the value of one country surpasses that of another, the bar belonging to that country will overtake and swap positions.
+    <br> This happens continuously for every country until the last day that data was collected, where the animation then stops. </p>
+
+<p> The Continents column within the dataset is used to group all countries by colour.</p>
+
+<p> Interaction: This visualisation allows user interaction. When the user hovers their mouse over a bar, the bar becomes highlighted. When the user clicks on the bar, the animation pauses and a box appears with further statistics for that country that were recorded up to the current date that the animation is on. These statistics include the number of cases reported that day, as well as the number of deaths. The user can then click 'Close' to resume the animation.</p>
+<hr>
+<p>Key:  <span>Asia</span>, <span1>Europe</span1>, <span2>Africa</span2>, <span3>America</span3>, <span4>Oceania</span4>, <span5>Other</span5></p>
+
+<script type="text/javascript">
+    spanSelection = d3.selectAll("p > span");
+    spanSelection.style("color", "#e41a1c");
+    spanSelection.style("opacity", 0.85);
+    spanSelection = d3.selectAll("p > span1");
+    spanSelection.style("color", "#377eb8");
+    spanSelection.style("opacity", 0.85);
+    spanSelection = d3.selectAll("p > span2");
+    spanSelection.style("color", "#4daf4a");
+    spanSelection.style("opacity", 0.85);
+    spanSelection = d3.selectAll("p > span3");
+    spanSelection.style("color", "#984ea3");
+    spanSelection.style("opacity", 0.85);
+    spanSelection = d3.selectAll("p > span4");
+    spanSelection.style("color", "#ff7f00");
+    spanSelection.style("opacity", 0.85);
+    spanSelection = d3.selectAll("p > span5");
+    spanSelection.style("color", "#fee087");
+    spanSelection.style("opacity", 1);
+
+
+    const parseTime = (date) => {
+        if (d3.timeParse("%Y-%m-%d")(date))
+            return d3.timeParse("%Y-%m-%d")(date);
+        else if (d3.timeParse("%Y/%m/%d")(date))
+            return d3.timeParse("%Y/%m/%d")(date);
+        else if (d3.timeParse("%d/%m/%Y")(date))
+            return d3.timeParse("%d/%m/%Y")(date);
+        else if (d3.timeParse("%Y-%m")(date))
+            return d3.timeParse("%Y-%m")(date);
+        else if (d3.timeParse("%Y/%m")(date))
+            return d3.timeParse("%Y/%m")(date);
+        else if (d3.timeParse("%Y")(date))
+            return d3.timeParse("%Y")(date);
+        else return date
+    }
+
+    d3.csv("COVID-19-geographic-disbtribution-worldwide-CUMULATIVE.csv")
+        .then(data => {
+            data.forEach(d => {
+                // d.value = +d.value;
+                // d.date = parseTime(d.date);
+                d.value = +d['Cumulative_Total_Cases'];
+                d.date = parseTime(d.dateRep);
+                d.name = d['countriesAndTerritories'];
+                d.category = d['continentExp'];
+                d.deaths = +d['Cumulative_Total_Deaths'];
+            });
+            // console.log(data);
+            render(data);
+        });
+
+    function render(data) {
+        var margin = ({ top: 16, right: 80, bottom: 6, left: 5 });
+        var barSize = 48;
+        var n = 12;
+        var duration = 200;
+        var width = 1500;
+        var height = margin.top + barSize * n + margin.bottom;
+        var k = 3;
+
+        var names = new Set(data.map(d => d.name));
+
+
+
+        var datevalues = Array.from(d3.rollup(data, ([d]) => d.value, d => +d.date, d => d.name))
+            .map(([date, data]) => [new Date(date), data])
+            .sort(([a], [b]) => d3.ascending(a, b));
+
+        function rank(value) {
+            const data = Array.from(names, name => ({ name, value: value(name)}));
+            data.sort((a, b) => d3.descending(a.value, b.value));
+            for (let i = 0; i < data.length; ++i) data[i].rank = Math.min(n, i);
+            return data;
+        };
+
+        // function keyframes() {
+        const keyframes = [];
+        let ka, a, kb, b;
+        for ([[ka, a], [kb, b]] of d3.pairs(datevalues)) {
+            for (let i = 0; i < k; ++i) {
+                const t = i / k;
+                keyframes.push([
+                    new Date(ka * (1 - t) + kb * t),
+                    rank(name => (a.get(name) || 0) * (1 - t) + (b.get(name) || 0) * t)
+                ]);
+            }
+        };
+        keyframes.push([new Date(kb), rank(name => b.get(name) || 0)]);
+        // return keyframes;
+        // };
+
+        var nameframes = d3.groups(keyframes.flatMap(([, data]) => data), d => d.name);
+        var prev = new Map(nameframes.flatMap(([, data]) => d3.pairs(data, (a, b) => [b, a])));
+        var next = new Map(nameframes.flatMap(([, data]) => d3.pairs(data)));
+        var y = d3.scaleBand()
+            .domain(d3.range(n + 1))
+            .rangeRound([margin.top, margin.top + barSize * (n + 1 + 0.1)])
+            .padding(0.1);
+
+        var x = d3.scaleLinear([0, 1], [margin.left, width - margin.right]);
+
+        var formatDate = d3.utcFormat("%d %b %Y");
+        var formatNumber = d3.format(",d");
+
+        function color(d) {
+            const scale = d3.scaleOrdinal(d3.schemeSet1);
+            if (data.some(d => d.category !== undefined)) {
+                const categoryByName = new Map(data.map(d => [d.name, d.category]))
+                scale.domain(Array.from(categoryByName.values()));
+                return d => scale(categoryByName.get(d.name));
+            }
+            return d => scale(d.name);
+        };
+
+        function ticker(svg) {
+            const now = svg.append("text")
+                .style("font", `bold ${barSize}px var(--sans-serif)`)
+                .style("font-variant-numeric", "tabular-nums")
+                .attr("text-anchor", "end")
+                .attr("x", width - 6)
+                .attr("y", margin.top + barSize * (n - 0.45))
+                //.attr("dy", "0.32em")
+                .text(formatDate(keyframes[0][0]))
+            ;
+
+            return ([date], transition) => {
+                transition.end().then(() => now.text(formatDate(date)));
+            };
+        };
+
+        function axis(svg) {
+            const g = svg.append("g")
+                .attr("transform", `translate(0,${margin.top})`);
+
+            const axis = d3.axisTop(x)
+                .ticks(width / 160)
+                .tickSizeOuter(0)
+                .tickSizeInner(-barSize * (n + y.padding()));
+
+            return (_, transition) => {
+                g.transition(transition).call(axis);
+                g.select(".tick:first-of-type text").remove();
+                g.selectAll(".tick:not(:first-of-type) line").attr("stroke", "white");
+                g.select(".domain").remove();
+            };
+        };
+
+        function textTween(a, b) {
+            const i = d3.interpolateNumber(a, b);
+            return function (t) {
+                this.textContent = formatNumber(i(t));
+            };
+        };
+
+        function bars(svg) {
+
+            let bar = svg.append("g")
+                .attr("fill-opacity", 0.8)
+                .selectAll("rect");
+
+            return ([date, data], transition) => bar = bar
+                .data(data.slice(0, n), d => d.name)
+                .join(
+                    enter => enter.append("rect")
+                        .attr("fill", color())
+                        .attr("height", y.bandwidth())
+                        .attr("x", x(0))
+                        .attr("y", d => y((prev.get(d) || d).rank))
+                        .attr("width", d => x((prev.get(d) || d).value) - x(0))
+                        .on('mouseover', function() {
+                            d3.select(this)
+                                //.attr('fill', 'aqua');
+                                .attr('fill-opacity', 0.5);
+                        })
+                        .on('mouseout', function() {
+                            d3.select(this)
+                                //.attr('fill', color());
+                                .attr('fill-opacity', 0.8);
+                        })
+                        .on("click", function(d) {
+                            var x = true;
+                            d3.csv("COVID-19-geographic-disbtribution-worldwide-CUMULATIVE.csv")
+
+                                .then(data1 => {
+                                    data1.forEach(d1 => {
+                                        // d.value = +d.value;
+                                        // d.date = parseTime(d.date);
+                                        d1.value = +d1['Cumulative_Total_Cases'];
+                                        d1.casesToday = +d1["cases"]
+                                        d1.date = parseTime(d.dateRep);
+                                        d1.name = d1['countriesAndTerritories'];
+                                        d1.category = d1['continentExp'];
+                                        d1.deathsToday = +d1.deaths;
+                                        d1.TotalDeaths = +d1['Cumulative_Total_Deaths'];
+
+
+                                        //console.log(d1.name);
+                                        //console.log(parseTime(d1.dateRep).toDateString());
+
+                                        if ((d1.name == d.name)&& (d1.value < d.value) && x)
+                                        {
+                                            x = false;
+                                            console.log("yes");
+                                            var totalCases = d1.value
+                                            var cases = d1.casesToday;
+                                            var deaths = d1.deathsToday;
+                                            alert("Country: " + d.name + "\nLatest Date of Reported Cases above Zero: " + parseTime(d1.dateRep).toDateString() + "\nCurrent World Rank for Total Cases: " + (d.rank+1) +"\nCases Today: " + cases + "\nTotal Cases: " + totalCases +  "\nDeaths Today: " + d1.deathsToday + "\nTotal Deaths: " + d1.TotalDeaths);
+                                            return;
+                                        }
+
+                                    });
+
+
+                                });
+
+
+
+
+                        })
+                    ,
+                    update => update,
+                    exit => exit.transition(transition).remove()
+                        .attr("y", d => y((next.get(d) || d).rank))
+                        .attr("width", d => x((next.get(d) || d).value) - x(0))
+                )
+                .call(bar => bar.transition(transition)
+                    .attr("y", d => y(d.rank))
+                    .attr("width", d => x(d.value) - x(0)));
+        };
+
+        function labels(svg) {
+            let label = svg.append("g")
+                .style("font", "bold 12px var(--sans-serif)")
+                .style("font-variant-numeric", "tabular-nums")
+                .attr("text-anchor", "start")
+                .selectAll("text");
+
+            return ([date, data], transition) => label = label
+                .data(data.slice(0, n), d => d.name)
+                .join(
+                    enter => enter.append("text")
+                        .attr("transform", d => `translate(${x((prev.get(d) || d).value)},${y((prev.get(d) || d).rank)})`)
+                        .attr("y", y.bandwidth() / 2)
+                        .attr("x", 6)
+                        .attr("dy", "-0.25em")
+                        .text(d => d.name)
+                        .call(text => text.append("tspan")
+                            .attr("fill-opacity", 0.7)
+                            .attr("font-weight", "normal")
+                            .attr("x", 6)
+                            .attr("dy", "1.15em")),
+                    update => update,
+                    exit => exit.transition(transition).remove()
+                        .attr("transform", d => `translate(${x((next.get(d) || d).value)},${y((next.get(d) || d).rank)})`)
+                        .call(g => g.select("tspan").tween("text", d => textTween(d.value, (next.get(d) || d).value)))
+                )
+                .call(bar => bar.transition(transition)
+                    .attr("transform", d => `translate(${x(d.value)},${y(d.rank)})`)
+                    .call(g => g.select("tspan").tween("text", d => textTween((prev.get(d) || d).value, d.value))));
+        };
+
+
+        async function* chart() {
+            //replay;
+            const svg = d3.select("body").append("svg")
+                .attr("viewBox", [0, 0, width, height]);
+
+            const updateBars = bars(svg);
+            const updateAxis = axis(svg);
+            const updateLabels = labels(svg);
+            const updateTicker = ticker(svg);
+
+            yield svg.node();
+
+            for (const keyframe of keyframes) {
+                const transition = svg.transition()
+                    .duration(duration)
+                    .ease(d3.easeLinear);
+
+                // Extract the top bar’s value.
+                x.domain([0, keyframe[1][0].value]);
+
+                updateAxis(keyframe, transition);
+                updateBars(keyframe, transition);
+                updateLabels(keyframe, transition);
+                updateTicker(keyframe, transition);
+
+                // invalidation.then(() => svg.interrupt());
+                await transition.end();
+            };
+        };
+
+
+
+        const c = chart();
+        (async () => {
+            for await (const val of c) {
+                // console.log(val); // Prints "Hello"
+            }
+        })();
+    };
+
+
+</script>
+</body>
+</html>
