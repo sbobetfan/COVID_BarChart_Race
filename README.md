@@ -3,4 +3,4 @@ This web application was completed as part of a project for the 'Simulation and 
 
 It was completed in WebStorm, and was my introduction to HTML and JavaScript.
 
-![alt text](https://github.com/sbobetfan/COVID_BarChart_Race/barchart.jpg?raw=true)
+![alt text](https://github.com/sbobetfan/COVID_BarChart_Race/blob/main/barchart.png?raw=true)
